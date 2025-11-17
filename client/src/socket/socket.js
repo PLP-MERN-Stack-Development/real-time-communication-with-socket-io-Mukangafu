@@ -1,6 +1,11 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000", {
+// Production-safe backend URL
+const backendURL = import.meta.env.VITE_SOCKET_URL;
+
+const socket = io(backendURL, {
+  withCredentials: true,
+  transports: ["websocket"],
   auth: {
     token: localStorage.getItem("token"),
   },

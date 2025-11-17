@@ -13,6 +13,8 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API_URL = import.meta.env.VITE_API_URL;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -20,18 +22,18 @@ export default function Register() {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/auth/register",
-        {
-          username,
-          email,
-          password,
-        }
+        `${API_URL}/api/auth/register`,
+        { username, email, password },
+        { withCredentials: true }
       );
 
-      // auto-login after register
+      // Auto-login after successful registration
       login(res.data);
+
+      // Redirect to chat
       navigate("/chat");
     } catch (err) {
+      console.log(err);
       setError(err.response?.data?.message || "Registration failed");
     } finally {
       setLoading(false);
@@ -47,7 +49,8 @@ export default function Register() {
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         placeholder="Username"
-        className="w-full p-3 rounded bg-[#40444b] outline-none text-white placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
+        className="w-full p-3 rounded bg-[#40444b] outline-none text-white 
+        placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
         required
       />
 
@@ -56,7 +59,8 @@ export default function Register() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email"
-        className="w-full p-3 rounded bg-[#40444b] outline-none text-white placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
+        className="w-full p-3 rounded bg-[#40444b] outline-none text-white 
+        placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
         required
       />
 
@@ -65,16 +69,16 @@ export default function Register() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
-        className="w-full p-3 rounded bg-[#40444b] outline-none text-white placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
+        className="w-full p-3 rounded bg-[#40444b] outline-none text-white 
+        placeholder-gray-400 text-sm focus:ring-2 focus:ring-[#5865f2]"
         required
       />
 
       <button
         type="submit"
         disabled={loading}
-        className={`mt-2 bg-[#5865f2] hover:bg-[#4752c4] text-white py-3 rounded font-medium transition-colors text-sm ${
-          loading ? "opacity-70 cursor-not-allowed" : ""
-        }`}
+        className={`mt-2 bg-[#5865f2] hover:bg-[#4752c4] text-white py-3 rounded font-medium text-sm 
+        transition-colors ${loading ? "opacity-70 cursor-not-allowed" : ""}`}
       >
         {loading ? "Creating account..." : "Register"}
       </button>

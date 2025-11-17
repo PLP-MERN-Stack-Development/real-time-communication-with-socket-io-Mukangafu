@@ -15,12 +15,23 @@ import Message from "./models/Message.js";
 dotenv.config();
 
 const app = express();
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+
+/* =====================================================
+   CORS — FIXED FOR BOTH LOCAL + VERCEL FRONTEND
+   ===================================================== */
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://socketio-czh6.vercel.app"
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
-// ---------------------------------------------
-// DATABASE
-// ---------------------------------------------
+/* =====================================================
+   DATABASE
+   ===================================================== */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
@@ -28,30 +39,35 @@ mongoose
 
 app.use("/api/auth", authRoutes);
 
-// ---------------------------------------------
-// SOCKET.IO SERVER
-// ---------------------------------------------
+/* =====================================================
+   SOCKET.IO SERVER WITH FIXED CORS
+   ===================================================== */
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://socketio-czh6.vercel.app"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
-// ---------------------------------------------
-// SOCKET AUTH (VERY IMPORTANT)
-// ---------------------------------------------
+/* =====================================================
+   SOCKET AUTH
+   ===================================================== */
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   if (!token) return next(new Error("Token missing"));
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // MUST CONTAIN username
     socket.user = {
       id: decoded.id,
       username: decoded.username,
     };
-
     next();
   } catch (err) {
     next(new Error("Invalid token"));
@@ -60,27 +76,25 @@ io.use((socket, next) => {
 
 let onlineUsers = [];
 
-// =============================================
-//               SOCKET HANDLER
-// =============================================
+/* =====================================================
+   SOCKET HANDLERS
+   ===================================================== */
 io.on("connection", (socket) => {
   const username = socket.user.username;
 
   console.log(`🟢 ${username} connected`);
 
-  // Track user online
   if (!onlineUsers.includes(username)) {
     onlineUsers.push(username);
   }
   io.emit("online_users", onlineUsers);
 
-  // -------------------------------------------
-  // JOIN ROOM (PUBLIC)
-  // -------------------------------------------
+  /* ------------------------------
+     JOIN PUBLIC ROOM + HISTORY
+  ------------------------------- */
   socket.on("join_room", async (roomName) => {
     socket.join(roomName);
 
-    // Load history from Mongo
     const history = await Message.find({ room: roomName }).sort({ createdAt: 1 });
 
     socket.emit(
@@ -94,7 +108,6 @@ io.on("connection", (socket) => {
       }))
     );
 
-    // Announce join
     socket.to(roomName).emit("room_message", {
       user: "System",
       type: "system",
@@ -103,9 +116,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  // -------------------------------------------
-  // SEND PUBLIC MESSAGE
-  // -------------------------------------------
+  /* ------------------------------
+     SEND PUBLIC MESSAGE
+  ------------------------------- */
   socket.on("send_room_message", async ({ roomName, message, type = "text", fileUrl = null }) => {
     const payload = {
       user: username,
@@ -115,10 +128,8 @@ io.on("connection", (socket) => {
       iso: new Date(),
     };
 
-    // Send to everyone (including sender)
     io.to(roomName).emit("room_message", payload);
 
-    // Save
     await Message.create({
       sender: username,
       receiver: null,
@@ -129,17 +140,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  // -------------------------------------------
-  // DIRECT MESSAGES (DM)
-  // -------------------------------------------
-  const dmRoom = (u1, u2) => {
-    return `dm:${[u1, u2].sort().join("_")}`;
-  };
+  /* ------------------------------
+     DIRECT MESSAGES (DM)
+  ------------------------------- */
+  const dmRoom = (u1, u2) => `dm:${[u1, u2].sort().join("_")}`;
 
-  // Join DM room
   socket.on("join_dm", async ({ withUser }) => {
     const room = dmRoom(username, withUser);
-
     socket.join(room);
 
     const history = await Message.find({
@@ -161,7 +168,6 @@ io.on("connection", (socket) => {
     );
   });
 
-  // Send private message
   socket.on("private_message", async ({ to, message, type = "text", fileUrl = null }) => {
     const room = dmRoom(username, to);
 
@@ -185,9 +191,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  // -------------------------------------------
-  // TYPING INDICATORS
-  // -------------------------------------------
+  /* ------------------------------
+     TYPING INDICATORS
+  ------------------------------- */
   socket.on("user_typing", (room) => {
     socket.to(room).emit("user_typing", username);
   });
@@ -196,9 +202,9 @@ io.on("connection", (socket) => {
     socket.to(room).emit("stop_typing", username);
   });
 
-  // -------------------------------------------
-  // DISCONNECT
-  // -------------------------------------------
+  /* ------------------------------
+     DISCONNECT
+  ------------------------------- */
   socket.on("disconnect", () => {
     onlineUsers = onlineUsers.filter((u) => u !== username);
     io.emit("online_users", onlineUsers);
@@ -206,8 +212,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// =============================================
-// START SERVER
-// =============================================
+/* =====================================================
+   START SERVER
+   ===================================================== */
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
